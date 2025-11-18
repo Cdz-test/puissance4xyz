@@ -6,7 +6,7 @@
     <title>Puissance 4 Multijoueur P2P</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@latest/css/all.min.css">
-    <script src="https://unpkg.com/netplayjs@0.4.1/dist/netplay.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <meta name="description" content="super jeu">
 </head>
 <body class="bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 min-h-screen flex items-center justify-center p-4">
@@ -128,9 +128,11 @@
                 this.currentPlayer = 1;
                 this.gameOver = false;
                 this.localPlayer = null;
-                this.netplay = null;
+                this.peer = null;
+                this.conn = null;
                 this.isHost = false;
                 this.winningCells = [];
+                this.peerId = null;
                 this.initializeUI();
                 this.checkURLParams();
             }
@@ -150,7 +152,7 @@
                 const roomId = params.get('room');
                 if (roomId) {
                     document.getElementById('gameId').value = roomId;
-                    this.joinGame();
+                    setTimeout(() => this.joinGame(), 500);
                 }
             }
 
@@ -180,18 +182,40 @@
                 this.isHost = true;
                 this.localPlayer = 1;
                 const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-                const gameUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
                 
-                document.getElementById('linkInput').value = gameUrl;
-                document.getElementById('gameLink').classList.remove('hidden');
-                document.getElementById('connectionStatus').innerHTML = `
-                    <div class="inline-flex items-center space-x-2 bg-blue-500/20 text-blue-300 px-4 py-2 rounded-full">
-                        <i class="fas fa-spinner fa-spin"></i>
-                        <span>En attente d'un joueur... (Room: ${roomId})</span>
-                    </div>
-                `;
-                
-                this.initNetplay(roomId, true);
+                this.peer = new Peer(roomId, {
+                    config: {
+                        'iceServers': [
+                            { url: 'stun:stun.l.google.com:19302' },
+                            { url: 'stun:stun1.l.google.com:19302' },
+                            { url: 'stun:stun2.l.google.com:19302' },
+                            { url: 'stun:stun3.l.google.com:19302' }
+                        ]
+                    }
+                });
+
+                this.peer.on('open', (id) => {
+                    this.peerId = id;
+                    const gameUrl = `${window.location.origin}${window.location.pathname}?room=${id}`;
+                    document.getElementById('linkInput').value = gameUrl;
+                    document.getElementById('gameLink').classList.remove('hidden');
+                    document.getElementById('connectionStatus').innerHTML = `
+                        <div class="inline-flex items-center space-x-2 bg-blue-500/20 text-blue-300 px-4 py-2 rounded-full">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>En attente d'un joueur... (Room: ${id})</span>
+                        </div>
+                    `;
+                });
+
+                this.peer.on('connection', (connection) => {
+                    this.conn = connection;
+                    this.setupConnection();
+                });
+
+                this.peer.on('error', (err) => {
+                    console.error('Peer error:', err);
+                    this.handleConnectionError(err);
+                });
             }
 
             joinGame() {
@@ -203,88 +227,84 @@
                 
                 this.isHost = false;
                 this.localPlayer = 2;
+                
                 document.getElementById('connectionStatus').innerHTML = `
                     <div class="inline-flex items-center space-x-2 bg-purple-500/20 text-purple-300 px-4 py-2 rounded-full">
                         <i class="fas fa-spinner fa-spin"></i>
                         <span>Connexion à la partie ${roomId}...</span>
                     </div>
                 `;
-                
-                this.initNetplay(roomId, false);
+
+                this.peer = new Peer(null, {
+                    config: {
+                        'iceServers': [
+                            { url: 'stun:stun.l.google.com:19302' },
+                            { url: 'stun:stun1.l.google.com:19302' },
+                            { url: 'stun:stun2.l.google.com:19302' },
+                            { url: 'stun:stun3.l.google.com:19302' }
+                        ]
+                    }
+                });
+
+                this.peer.on('open', () => {
+                    this.conn = this.peer.connect(roomId, {
+                        reliable: true
+                    });
+                    
+                    if (this.conn) {
+                        this.setupConnection();
+                    }
+                });
+
+                this.peer.on('error', (err) => {
+                    console.error('Peer error:', err);
+                    this.handleConnectionError(err);
+                });
             }
 
-            initNetplay(roomId, isHost) {
-                const gameState = {
-                    board: this.board,
-                    currentPlayer: this.currentPlayer,
-                    gameOver: this.gameOver,
-                    lastMove: null,
-                    restart: false,
-                    winningCells: []
-                };
+            setupConnection() {
+                if (!this.conn) return;
 
-                this.netplay = new netplayjs.NetplayPlayer(
-                    isHost,
-                    (frame, inputs) => {
-                        if (inputs[0].restart || inputs[1].restart) {
-                            gameState.board = Array(6).fill(null).map(() => Array(7).fill(0));
-                            gameState.currentPlayer = 1;
-                            gameState.gameOver = false;
-                            gameState.lastMove = null;
-                            gameState.winningCells = [];
-                        }
-
-                        const playerInput = isHost ? inputs[0] : inputs[1];
-                        const opponentInput = isHost ? inputs[1] : inputs[0];
-                        
-                        const activeInput = gameState.currentPlayer === 1 ? (isHost ? playerInput : opponentInput) : (isHost ? opponentInput : playerInput);
-                        
-                        if (activeInput.column !== undefined && !gameState.gameOver) {
-                            const col = activeInput.column;
-                            for (let row = 0; row < 6; row++) {
-                                if (gameState.board[row][col] === 0) {
-                                    gameState.board[row][col] = gameState.currentPlayer;
-                                    gameState.lastMove = {row, col, player: gameState.currentPlayer};
-                                    
-                                    const winner = this.checkWinner(gameState.board, row, col);
-                                    if (winner) {
-                                        gameState.gameOver = true;
-                                        gameState.winningCells = winner.cells;
-                                    } else if (this.isBoardFull(gameState.board)) {
-                                        gameState.gameOver = true;
-                                    }
-                                    
-                                    gameState.currentPlayer = gameState.currentPlayer === 1 ? 2 : 1;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        return gameState;
-                    },
-                    (state) => {
-                        this.board = state.board;
-                        this.currentPlayer = state.currentPlayer;
-                        this.gameOver = state.gameOver;
-                        this.winningCells = state.winningCells || [];
-                        this.updateDisplay();
-                        
-                        if (state.lastMove) {
-                            this.animateMove(state.lastMove);
-                        }
-                    },
-                    () => ({ column: this.pendingMove, restart: this.pendingRestart }),
-                    document.body,
-                    { pingInterval: 10, playerCount: 2 }
-                );
-
-                this.netplay.start(roomId).then(() => {
+                this.conn.on('open', () => {
                     console.log('Connexion établie!');
                     this.onConnected();
-                }).catch((err) => {
-                    console.error('Erreur de connexion:', err);
-                    alert('Erreur de connexion: ' + err.message);
+                    
+                    if (this.isHost) {
+                        this.syncGameState();
+                    }
                 });
+
+                this.conn.on('data', (data) => {
+                    this.handleData(data);
+                });
+
+                this.conn.on('close', () => {
+                    alert('La connexion a été perdue');
+                    this.resetConnection();
+                });
+
+                this.conn.on('error', (err) => {
+                    console.error('Connection error:', err);
+                    this.handleConnectionError(err);
+                });
+            }
+
+            handleConnectionError(err) {
+                let message = 'Erreur de connexion';
+                if (err.type === 'peer-unavailable') {
+                    message = 'La partie n\'existe pas ou a expiré';
+                } else if (err.type === 'network') {
+                    message = 'Erreur réseau, vérifiez votre connexion';
+                } else if (err.type === 'server-error') {
+                    message = 'Erreur serveur, réessayez plus tard';
+                }
+                
+                document.getElementById('connectionStatus').innerHTML = `
+                    <div class="inline-flex items-center space-x-2 bg-red-500/20 text-red-300 px-4 py-2 rounded-full">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>${message}</span>
+                    </div>
+                `;
             }
 
             onConnected() {
@@ -295,14 +315,69 @@
                 this.updateDisplay();
             }
 
+            handleData(data) {
+                if (data.type === 'move') {
+                    this.applyMove(data.column);
+                } else if (data.type === 'restart') {
+                    this.resetGame();
+                } else if (data.type === 'sync') {
+                    this.board = data.board;
+                    this.currentPlayer = data.currentPlayer;
+                    this.gameOver = data.gameOver;
+                    this.winningCells = data.winningCells;
+                    this.updateDisplay();
+                }
+            }
+
+            syncGameState() {
+                if (this.conn && this.conn.open) {
+                    this.conn.send({
+                        type: 'sync',
+                        board: this.board,
+                        currentPlayer: this.currentPlayer,
+                        gameOver: this.gameOver,
+                        winningCells: this.winningCells
+                    });
+                }
+            }
+
             handleColumnClick(col) {
-                if (this.gameOver || !this.netplay) return;
+                if (this.gameOver || !this.conn || !this.conn.open) return;
                 if (this.currentPlayer !== this.localPlayer) return;
                 
                 for (let row = 0; row < 6; row++) {
                     if (this.board[row][col] === 0) {
-                        this.pendingMove = col;
-                        setTimeout(() => { this.pendingMove = undefined; }, 100);
+                        this.applyMove(col);
+                        if (this.conn && this.conn.open) {
+                            this.conn.send({
+                                type: 'move',
+                                column: col
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
+
+            applyMove(col) {
+                for (let row = 0; row < 6; row++) {
+                    if (this.board[row][col] === 0) {
+                        this.board[row][col] = this.currentPlayer;
+                        this.animateMove({row, col, player: this.currentPlayer});
+                        
+                        const winner = this.checkWinner(this.board, row, col);
+                        if (winner) {
+                            this.gameOver = true;
+                            this.winningCells = winner.cells;
+                        } else if (this.isBoardFull(this.board)) {
+                            this.gameOver = true;
+                        }
+                        
+                        if (!this.gameOver) {
+                            this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+                        }
+                        
+                        this.updateDisplay();
                         break;
                     }
                 }
@@ -320,6 +395,8 @@
                 for (let row = 0; row < 6; row++) {
                     for (let col = 0; col < 7; col++) {
                         const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                        if (!cell) continue;
+                        
                         cell.classList.remove('bg-yellow-400', 'bg-red-500', 'winning-cell');
                         
                         if (this.board[row][col] === 1) {
@@ -392,8 +469,31 @@
             }
 
             requestRestart() {
-                this.pendingRestart = true;
-                setTimeout(() => { this.pendingRestart = false; }, 100);
+                this.resetGame();
+                if (this.conn && this.conn.open) {
+                    this.conn.send({
+                        type: 'restart'
+                    });
+                }
+            }
+
+            resetGame() {
+                this.board = Array(6).fill(null).map(() => Array(7).fill(0));
+                this.currentPlayer = 1;
+                this.gameOver = false;
+                this.winningCells = [];
+                this.updateDisplay();
+            }
+
+            resetConnection() {
+                if (this.peer) {
+                    this.peer.destroy();
+                }
+                this.peer = null;
+                this.conn = null;
+                document.getElementById('connectionPanel').classList.remove('hidden');
+                document.getElementById('gameArea').classList.add('hidden');
+                document.getElementById('gameLink').classList.add('hidden');
             }
 
             copyGameLink() {
@@ -412,6 +512,7 @@
 
             quitGame() {
                 if (confirm('Êtes-vous sûr de vouloir quitter la partie?')) {
+                    this.resetConnection();
                     window.location.href = window.location.pathname;
                 }
             }
