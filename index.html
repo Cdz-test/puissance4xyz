@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puissance 4 Multijoueur P2P</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@latest/css/all.min.css">
+    <script src="https://unpkg.com/netplayjs@0.4.1/dist/netplay.js"></script>
+    <meta name="description" content="super jeu">
+</head>
+<body class="bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-6xl w-full">
+        <div class="text-center mb-8">
+            <h1 class="text-6xl font-bold text-white mb-2 drop-shadow-lg">
+                <i class="fas fa-coins text-yellow-400"></i> Puissance 4 <i class="fas fa-coins text-red-500"></i>
+            </h1>
+            <p class="text-xl text-gray-300">Jeu multijoueur P2P sans serveur</p>
+        </div>
+
+        <div id="connectionPanel" class="bg-white/10 backdrop-blur-lg rounded-2xl p-8 mb-6 shadow-2xl border border-white/20">
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-2xl font-bold text-white mb-4">
+                        <i class="fas fa-play-circle"></i> Créer une partie
+                    </h2>
+                    <button id="createGame" class="w-full bg-white text-blue-600 font-bold py-3 px-6 rounded-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+                        <i class="fas fa-plus-circle"></i> Nouvelle partie
+                    </button>
+                    <div id="gameLink" class="mt-4 hidden">
+                        <p class="text-white/90 text-sm mb-2">Partagez ce lien avec votre ami:</p>
+                        <div class="bg-white/20 rounded-lg p-3">
+                            <input id="linkInput" type="text" readonly="" class="w-full bg-transparent text-white text-sm outline-none">
+                        </div>
+                        <button id="copyLink" class="mt-2 w-full bg-white/20 text-white py-2 rounded-lg hover:bg-white/30 transition-all">
+                            <i class="fas fa-copy"></i> Copier le lien
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-2xl font-bold text-white mb-4">
+                        <i class="fas fa-user-friends"></i> Rejoindre une partie
+                    </h2>
+                    <input id="gameId" type="text" placeholder="ID de la partie" class="w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-white/60 outline-none focus:bg-white/30 transition-all mb-3">
+                    <button id="joinGame" class="w-full bg-white text-purple-600 font-bold py-3 px-6 rounded-lg hover:bg-purple-50 transition-all transform hover:scale-105 shadow-lg">
+                        <i class="fas fa-sign-in-alt"></i> Rejoindre
+                    </button>
+                </div>
+            </div>
+
+            <div id="connectionStatus" class="mt-6 text-center">
+                <div class="inline-flex items-center space-x-2 bg-yellow-500/20 text-yellow-300 px-4 py-2 rounded-full">
+                    <i class="fas fa-info-circle"></i>
+                    <span>En attente de connexion...</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="gameArea" class="hidden">
+            <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-4 shadow-2xl border border-white/20">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-yellow-400 rounded-full shadow-lg"></div>
+                            <span id="player1Name" class="text-white font-bold">Joueur 1</span>
+                        </div>
+                        <span class="text-white/60">VS</span>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-red-500 rounded-full shadow-lg"></div>
+                            <span id="player2Name" class="text-white font-bold">Joueur 2</span>
+                        </div>
+                    </div>
+                    <div id="turnIndicator" class="bg-white/20 px-4 py-2 rounded-lg">
+                        <span class="text-white font-semibold">Tour: <span id="currentPlayer">Joueur 1</span></span>
+                    </div>
+                </div>
+
+                <div id="gameBoard" class="relative bg-gradient-to-b from-blue-600 to-blue-800 rounded-xl p-4 shadow-2xl">
+                    <div class="grid grid-cols-7 gap-2">
+                    </div>
+                </div>
+
+                <div id="gameMessage" class="mt-4 text-center hidden">
+                    <div class="bg-green-500/20 text-green-300 px-6 py-3 rounded-lg inline-block">
+                        <i class="fas fa-trophy text-2xl mr-2"></i>
+                        <span id="messageText" class="font-bold text-lg"></span>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex justify-center space-x-4">
+                    <button id="restartGame" class="bg-gradient-to-r from-green-500 to-green-600 text-white font-bold py-3 px-6 rounded-lg hover:from-green-600 hover:to-green-700 transition-all transform hover:scale-105 shadow-lg">
+                        <i class="fas fa-redo"></i> Nouvelle partie
+                    </button>
+                    <button id="quitGame" class="bg-gradient-to-r from-red-500 to-red-600 text-white font-bold py-3 px-6 rounded-lg hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105 shadow-lg">
+                        <i class="fas fa-times-circle"></i> Quitter
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes drop {
+            0% { transform: translateY(-100px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        .drop-animation {
+            animation: drop 0.3s ease-out;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .pulse-animation {
+            animation: pulse 0.5s ease-in-out infinite;
+        }
+        .winning-cell {
+            animation: pulse 1s ease-in-out infinite;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+        }
+    </style>
+
+    <script>
+        class Connect4Game {
+            constructor() {
+                this.board = Array(6).fill(null).map(() => Array(7).fill(0));
+                this.currentPlayer = 1;
+                this.gameOver = false;
+                this.localPlayer = null;
+                this.netplay = null;
+                this.isHost = false;
+                this.winningCells = [];
+                this.initializeUI();
+                this.checkURLParams();
+            }
+
+            initializeUI() {
+                this.createBoard();
+                
+                document.getElementById('createGame').addEventListener('click', () => this.createGame());
+                document.getElementById('joinGame').addEventListener('click', () => this.joinGame());
+                document.getElementById('copyLink').addEventListener('click', () => this.copyGameLink());
+                document.getElementById('restartGame').addEventListener('click', () => this.requestRestart());
+                document.getElementById('quitGame').addEventListener('click', () => this.quitGame());
+            }
+
+            checkURLParams() {
+                const params = new URLSearchParams(window.location.search);
+                const roomId = params.get('room');
+                if (roomId) {
+                    document.getElementById('gameId').value = roomId;
+                    this.joinGame();
+                }
+            }
+
+            createBoard() {
+                const boardElement = document.querySelector('#gameBoard .grid');
+                boardElement.innerHTML = '';
+                
+                for (let col = 0; col < 7; col++) {
+                    const columnDiv = document.createElement('div');
+                    columnDiv.className = 'flex flex-col-reverse gap-2';
+                    columnDiv.dataset.column = col;
+                    
+                    for (let row = 0; row < 6; row++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'w-12 h-12 md:w-16 md:h-16 bg-white/20 rounded-full shadow-inner cursor-pointer hover:bg-white/30 transition-all';
+                        cell.dataset.row = row;
+                        cell.dataset.col = col;
+                        columnDiv.appendChild(cell);
+                    }
+                    
+                    columnDiv.addEventListener('click', () => this.handleColumnClick(col));
+                    boardElement.appendChild(columnDiv);
+                }
+            }
+
+            createGame() {
+                this.isHost = true;
+                this.localPlayer = 1;
+                const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+                const gameUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+                
+                document.getElementById('linkInput').value = gameUrl;
+                document.getElementById('gameLink').classList.remove('hidden');
+                document.getElementById('connectionStatus').innerHTML = `
+                    <div class="inline-flex items-center space-x-2 bg-blue-500/20 text-blue-300 px-4 py-2 rounded-full">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>En attente d'un joueur... (Room: ${roomId})</span>
+                    </div>
+                `;
+                
+                this.initNetplay(roomId, true);
+            }
+
+            joinGame() {
+                const roomId = document.getElementById('gameId').value.trim();
+                if (!roomId) {
+                    alert('Veuillez entrer un ID de partie');
+                    return;
+                }
+                
+                this.isHost = false;
+                this.localPlayer = 2;
+                document.getElementById('connectionStatus').innerHTML = `
+                    <div class="inline-flex items-center space-x-2 bg-purple-500/20 text-purple-300 px-4 py-2 rounded-full">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Connexion à la partie ${roomId}...</span>
+                    </div>
+                `;
+                
+                this.initNetplay(roomId, false);
+            }
+
+            initNetplay(roomId, isHost) {
+                const gameState = {
+                    board: this.board,
+                    currentPlayer: this.currentPlayer,
+                    gameOver: this.gameOver,
+                    lastMove: null,
+                    restart: false,
+                    winningCells: []
+                };
+
+                this.netplay = new netplayjs.NetplayPlayer(
+                    isHost,
+                    (frame, inputs) => {
+                        if (inputs[0].restart || inputs[1].restart) {
+                            gameState.board = Array(6).fill(null).map(() => Array(7).fill(0));
+                            gameState.currentPlayer = 1;
+                            gameState.gameOver = false;
+                            gameState.lastMove = null;
+                            gameState.winningCells = [];
+                        }
+
+                        const playerInput = isHost ? inputs[0] : inputs[1];
+                        const opponentInput = isHost ? inputs[1] : inputs[0];
+                        
+                        const activeInput = gameState.currentPlayer === 1 ? (isHost ? playerInput : opponentInput) : (isHost ? opponentInput : playerInput);
+                        
+                        if (activeInput.column !== undefined && !gameState.gameOver) {
+                            const col = activeInput.column;
+                            for (let row = 0; row < 6; row++) {
+                                if (gameState.board[row][col] === 0) {
+                                    gameState.board[row][col] = gameState.currentPlayer;
+                                    gameState.lastMove = {row, col, player: gameState.currentPlayer};
+                                    
+                                    const winner = this.checkWinner(gameState.board, row, col);
+                                    if (winner) {
+                                        gameState.gameOver = true;
+                                        gameState.winningCells = winner.cells;
+                                    } else if (this.isBoardFull(gameState.board)) {
+                                        gameState.gameOver = true;
+                                    }
+                                    
+                                    gameState.currentPlayer = gameState.currentPlayer === 1 ? 2 : 1;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        return gameState;
+                    },
+                    (state) => {
+                        this.board = state.board;
+                        this.currentPlayer = state.currentPlayer;
+                        this.gameOver = state.gameOver;
+                        this.winningCells = state.winningCells || [];
+                        this.updateDisplay();
+                        
+                        if (state.lastMove) {
+                            this.animateMove(state.lastMove);
+                        }
+                    },
+                    () => ({ column: this.pendingMove, restart: this.pendingRestart }),
+                    document.body,
+                    { pingInterval: 10, playerCount: 2 }
+                );
+
+                this.netplay.start(roomId).then(() => {
+                    console.log('Connexion établie!');
+                    this.onConnected();
+                }).catch((err) => {
+                    console.error('Erreur de connexion:', err);
+                    alert('Erreur de connexion: ' + err.message);
+                });
+            }
+
+            onConnected() {
+                document.getElementById('connectionPanel').classList.add('hidden');
+                document.getElementById('gameArea').classList.remove('hidden');
+                document.getElementById('player1Name').textContent = this.isHost ? 'Vous (Jaune)' : 'Adversaire (Jaune)';
+                document.getElementById('player2Name').textContent = !this.isHost ? 'Vous (Rouge)' : 'Adversaire (Rouge)';
+                this.updateDisplay();
+            }
+
+            handleColumnClick(col) {
+                if (this.gameOver || !this.netplay) return;
+                if (this.currentPlayer !== this.localPlayer) return;
+                
+                for (let row = 0; row < 6; row++) {
+                    if (this.board[row][col] === 0) {
+                        this.pendingMove = col;
+                        setTimeout(() => { this.pendingMove = undefined; }, 100);
+                        break;
+                    }
+                }
+            }
+
+            animateMove(move) {
+                const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
+                if (cell) {
+                    cell.classList.add('drop-animation');
+                    setTimeout(() => cell.classList.remove('drop-animation'), 300);
+                }
+            }
+
+            updateDisplay() {
+                for (let row = 0; row < 6; row++) {
+                    for (let col = 0; col < 7; col++) {
+                        const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                        cell.classList.remove('bg-yellow-400', 'bg-red-500', 'winning-cell');
+                        
+                        if (this.board[row][col] === 1) {
+                            cell.classList.add('bg-yellow-400');
+                            cell.classList.remove('bg-white/20');
+                        } else if (this.board[row][col] === 2) {
+                            cell.classList.add('bg-red-500');
+                            cell.classList.remove('bg-white/20');
+                        } else {
+                            cell.classList.add('bg-white/20');
+                        }
+                        
+                        if (this.winningCells.some(wc => wc.row === row && wc.col === col)) {
+                            cell.classList.add('winning-cell');
+                        }
+                    }
+                }
+                
+                if (this.gameOver) {
+                    document.getElementById('gameMessage').classList.remove('hidden');
+                    if (this.winningCells.length > 0) {
+                        const winner = this.board[this.winningCells[0].row][this.winningCells[0].col];
+                        const winnerName = winner === this.localPlayer ? 'Vous avez gagné!' : 'Vous avez perdu!';
+                        document.getElementById('messageText').textContent = winnerName;
+                    } else {
+                        document.getElementById('messageText').textContent = 'Match nul!';
+                    }
+                } else {
+                    document.getElementById('gameMessage').classList.add('hidden');
+                    const currentPlayerText = this.currentPlayer === this.localPlayer ? 'Votre tour' : 'Tour adverse';
+                    document.getElementById('currentPlayer').textContent = currentPlayerText;
+                    document.getElementById('currentPlayer').className = this.currentPlayer === 1 ? 'text-yellow-400' : 'text-red-500';
+                }
+            }
+
+            checkWinner(board, row, col) {
+                const player = board[row][col];
+                const directions = [
+                    [[0, 1], [0, -1]],
+                    [[1, 0], [-1, 0]],
+                    [[1, 1], [-1, -1]],
+                    [[1, -1], [-1, 1]]
+                ];
+                
+                for (const [dir1, dir2] of directions) {
+                    const cells = [{row, col}];
+                    
+                    for (const [dr, dc] of [dir1, dir2]) {
+                        for (let i = 1; i < 4; i++) {
+                            const newRow = row + dr * i;
+                            const newCol = col + dc * i;
+                            if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7 && board[newRow][newCol] === player) {
+                                cells.push({row: newRow, col: newCol});
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (cells.length >= 4) {
+                        return {cells: cells.slice(0, 4)};
+                    }
+                }
+                
+                return null;
+            }
+
+            isBoardFull(board) {
+                return board.every(row => row.every(cell => cell !== 0));
+            }
+
+            requestRestart() {
+                this.pendingRestart = true;
+                setTimeout(() => { this.pendingRestart = false; }, 100);
+            }
+
+            copyGameLink() {
+                const linkInput = document.getElementById('linkInput');
+                linkInput.select();
+                document.execCommand('copy');
+                
+                const button = document.getElementById('copyLink');
+                button.innerHTML = '<i class="fas fa-check"></i> Copié!';
+                button.classList.add('bg-green-500/30');
+                setTimeout(() => {
+                    button.innerHTML = '<i class="fas fa-copy"></i> Copier le lien';
+                    button.classList.remove('bg-green-500/30');
+                }, 2000);
+            }
+
+            quitGame() {
+                if (confirm('Êtes-vous sûr de vouloir quitter la partie?')) {
+                    window.location.href = window.location.pathname;
+                }
+            }
+        }
+
+        const game = new Connect4Game();
+    </script>
+</body>
+</html>
